@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# الانتقال لمجلد السكريبت الحالي لضمان الوصول للملفات المضغوطة
+cd "$(dirname "$0")" || exit
+
+echo -e '\e[1m\e[31m
+Storm source is being installed on Ubuntu 22.04, 
+Please wait until the installation is complete.
+\033[0m'
+
+echo -e '\033[0;33m
+If it is the first time to install the source, send the number » {1}
+or اذا كانت اول مره تنصيب السورس ارسل رقم » {1}
+If you have already installed the source, send the number » {2}
+or اذا سبق ونصبت السورس ارسل رقم » {2}
+\033[0m'
+
+read -r Install
+
+case $Install in
+1)
+    echo -e '\033[0;33mInstallation of Lua dependencies has begun...\033[0m'
+    sleep 2
+
+    # تحديث النظام بالكامل
+    sudo apt update && sudo apt upgrade -y
+
+    # تثبيت الأدوات الأساسية والمكتبات التي تحتاجها لغة Lua للتعامل مع الروابط والملفات
+    sudo apt install -y tmux screen zip unzip git make autoconf g++ gcc \
+    redis-server libjansson-dev libpython3-dev expat libexpat1-dev \
+    libreadline-dev libconfig-dev libssl-dev libevent-dev \
+    software-properties-common build-essential zlib1g-dev \
+    libconfig++9v5 libstdc++6 libnotify-dev libcurl4-openssl-dev
+
+    # تثبيت Lua 5.3 والمكتبات التطويرية الخاصة بها
+    sudo apt install -y lua5.3 liblua5.3-dev lua-socket lua-sec lua-expat lua-lgi
+
+    # تثبيت Python 3 و yt-dlp (بديل youtube-dl المتوقف) لضمان عمل التحميلات
+    sudo apt install -y python3 python3-pip ffmpeg
+    pip3 install yt-dlp
+
+    # تحميل وتثبيت Luarocks (مدير حزم Lua) من المصدر لضمان التوافق مع Ubuntu 22
+    echo -e '\e[1m\e[32mConfiguring Luarocks for Lua 5.3...\e[0m'
+    mkdir -p lua_install_tmp
+    cd lua_install_tmp || exit
+    wget https://luarocks.org/releases/luarocks-3.9.2.tar.gz --no-check-certificate
+    tar zxpf luarocks-3.9.2.tar.gz
+    cd luarocks-3.9.2 || exit
+    ./configure --with-lua-interpreter=lua5.3
+    make && sudo make install
+    cd ../..
+    rm -rf lua_install_tmp
+
+    # تثبيت حزم Lua البرمجية الضرورية
+    sudo luarocks install luasocket
+    sudo luarocks install luasec
+    sudo luarocks install lua-term
+    sudo luarocks install Lua-cURL
+    sudo luarocks install dkjson
+    sudo luarocks install lanes
+    sudo luarocks install xml
+
+    # تشغيل قاعدة بيانات Redis
+    sudo service redis-server start
+
+    # فك الضغط عن ملفات السورس الأساسية (MeroLua)
+    if [ -f "MeroLua.zip" ]; then
+        unzip -o MeroLua.zip
+        # إنشاء المسار الصحيح للمكتبات في Lua 5.3
+        sudo mkdir -p /usr/lib/x86_64-linux-gnu/lua/5.3/
+        sudo mkdir -p /usr/local/share/lua/5.3/
+        
+        # نقل الملفات البرمجية للمسارات التي يبحث فيها نظام Lua
+        [ -f "MeroLua.so" ] && sudo cp MeroLua.so /usr/lib/x86_64-linux-gnu/lua/5.3/MeroLua.so
+        [ -f "MeroTele.lua" ] && sudo cp MeroTele.lua /usr/local/share/lua/5.3/MeroTele.lua
+    fi
+
+    # فك ضغط ملف luatele إذا كان موجوداً
+    if [ -f "luatele.zip" ]; then
+        unzip -o luatele.zip
+    fi
+
+    echo -e "\n\e[1m\e[32m--- Installation Success ---\e[0m"
+    echo -e "\e[1m\e[32mLaunching Fast.lua now...\e[0m"
+    lua5.3 Fast.lua
+    ;;
+
+2)
+    echo -e "\e[1m\e[32mStarting the bot... جاري التشغيل\e[0m"
+    sleep 1
+    # التأكد من تشغيل Redis قبل تشغيل ملف Lua
+    sudo service redis-server start
+    lua5.3 Fast.lua
+    ;;
+
+*)
+    echo -e "\e[31mInvalid selection! / خيار غير صحيح\e[0m"
+    ;;
+esac
